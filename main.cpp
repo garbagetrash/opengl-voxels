@@ -14,6 +14,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/noise.hpp>
 // My files
 #include "shader.h"
 #include "mesh.h"
@@ -21,15 +22,16 @@
 #include "grassTex.h"
 #include "camera.h"
 #include "voxels.h"
-//#include "marchingCubes.h"
+#include "marchingCubes.h"
 #include "VoxelOctree.h"
+#include "VoxelStruct.h"
 
 //////////
 // Globals
 GLboolean wireframeMode = GL_FALSE;
 const GLuint screenWidth = 1680, screenHeight = 1050;
 // Camera
-Camera camera(glm::vec3(0.0f, 0.0f, 10.0f));
+Camera camera(glm::vec3(0.0f, 10.0f, 10.0f));
 GLfloat lastX = screenWidth / 2.0f, lastY = screenHeight / 2.0f;
 GLboolean keys[1024];
 // Deltatime
@@ -73,8 +75,6 @@ int main()
 	Shader simpleShader("simpleShader.vs", "simpleShader.frag");
 	Shader grassShader("grassShader.vs", "grassShader.frag");
 
-	GLint N = 32;
-	GLfloat GRID_SIZE = 0.5f;
 	// Evaluate the grid with our distance field.
 	std::vector<GLfloat> vertices;
 	//vertices.resize(8 * 3 * 4 * N * N);
@@ -94,74 +94,30 @@ int main()
 
 	//vertices.clear();
 	
-	VoxelOctree cell(-16.0f, 0.0f, -16.0f, 5, sphereDist, vertices);
-	std::cout << vertices.capacity() << std::endl;
-	std::cout << vertices.max_size() << std::endl;
-	std::cout << vertices.size() << std::endl;
-
+	// Initialize some terrain
+	GLint N = 16;
 	/*
-	for (GLfloat x = 0; x < N; x++)
+	Cube voxel;
+	//VoxelOctree tree(-N, -N, -N, 3);
+	GLfloat size = 1.0f;
+	for (GLfloat x = -N; x < N; x++)
 	{
-		for (GLfloat y = 0; y < N; y++)
+		for (GLfloat y = -N; y < N; y++)
 		{
-			for (GLfloat z = 0; z < N; z++)
+			for (GLfloat z = -N; z < N; z++)
 			{
-				Cube cube(x*GRID_SIZE, y*GRID_SIZE, z*GRID_SIZE, GRID_SIZE);
-				for (GLint i = 0; i < 8; i++)
-				{
-					cube.cornerVals[i] = sphereDist(cube.cornersCoords[i].x, cube.cornersCoords[i].y, cube.cornersCoords[i].z);
-
-					GLfloat xdiff = (sphereDist(x*GRID_SIZE + GRID_SIZE, y*GRID_SIZE, z*GRID_SIZE) - sphereDist(x*GRID_SIZE - GRID_SIZE, y*GRID_SIZE, z*GRID_SIZE));
-					GLfloat ydiff = (sphereDist(x*GRID_SIZE, y*GRID_SIZE + GRID_SIZE, z*GRID_SIZE) - sphereDist(x*GRID_SIZE, y*GRID_SIZE - GRID_SIZE, z*GRID_SIZE));
-					GLfloat zdiff = (sphereDist(x*GRID_SIZE, y*GRID_SIZE, z*GRID_SIZE + GRID_SIZE) - sphereDist(x*GRID_SIZE, y*GRID_SIZE, z*GRID_SIZE - GRID_SIZE));
-					cube.cornerNorms[i] = glm::normalize(glm::vec3(xdiff, ydiff, zdiff));
-				}
-				GLint nTriags = cube.polygonise(0.0f);
-				for (GLint i = 0; i < nTriags; i++)
-				{
-					// Position
-					vertices.push_back(cube.triangles[i].p[0].x);
-					vertices.push_back(cube.triangles[i].p[0].y);
-					vertices.push_back(cube.triangles[i].p[0].z);
-					// Normal
-					vertices.push_back(cube.triangles[i].n[0].x);
-					vertices.push_back(cube.triangles[i].n[0].y);
-					vertices.push_back(cube.triangles[i].n[0].z);
-					// Tex Coords
-					vertices.push_back(0.0f);
-					vertices.push_back(0.0f);
-
-					vertices.push_back(cube.triangles[i].p[1].x);
-					vertices.push_back(cube.triangles[i].p[1].y);
-					vertices.push_back(cube.triangles[i].p[1].z);
-					vertices.push_back(cube.triangles[i].n[1].x);
-					vertices.push_back(cube.triangles[i].n[1].y);
-					vertices.push_back(cube.triangles[i].n[1].z);
-					vertices.push_back(1.0f);
-					vertices.push_back(0.0f);
-					vertices.push_back(cube.triangles[i].p[2].x);
-					vertices.push_back(cube.triangles[i].p[2].y);
-					vertices.push_back(cube.triangles[i].p[2].z);
-					vertices.push_back(cube.triangles[i].n[2].x);
-					vertices.push_back(cube.triangles[i].n[2].y);
-					vertices.push_back(cube.triangles[i].n[2].z);
-					vertices.push_back(1.0f);
-					vertices.push_back(1.0f);
-
-					/*
-					for (GLuint j = 0; j < 3; j++)
-					{
-						Vertex v;
-						v.Position = cube.triangles[i].p[j];
-						v.Normal = cube.triangles[i].n[j];
-						vertices2.push_back(v);
-						indices.push_back(i * 3 + j);
-					}
-				}
+				voxel.set(size * x, size * y, size * z, size, sphereDist, vertices);
+				//tree.set(floor(x), floor(y), floor(z));
 			}
 		}
 	}
 	*/
+	VoxelStruct field(glm::vec3(0.0f, 0.0f, 0.0f), N, sphereDist, vertices);
+
+	std::cout << vertices.capacity() << std::endl;
+	std::cout << vertices.max_size() << std::endl;
+	std::cout << vertices.size() << std::endl;
+
 	std::vector<Texture> textures;
 	//Mesh mesh(vertices2, indices, textures);
 
@@ -261,8 +217,24 @@ int main()
 		if (accumTime > 3.0)
 		{
 			// Every 3 s draw new cell around player
-			vertices.clear();
-			VoxelOctree cell(camera.Position.x - 8.0f, 0.0f, camera.Position.z - 8.0f, 4, sphereDist, vertices);
+			//vertices.clear();
+			/*
+			N = 8;
+			for (GLfloat x = -N; x < N; x++)
+			{
+				for (GLfloat y = -N; y < N; y++)
+				{
+					for (GLfloat z = -N; z < N; z++)
+					{
+						voxel.set(floor(camera.Position.x + x), floor(camera.Position.y + y), floor(camera.Position.z + z), 1.0f, sphereDist, vertices);
+						//tree.set(floor(x), floor(y), floor(z));
+					}
+				}
+			}
+			*/
+			field.updateVoxels(camera.Position, vertices);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * vertices.size(), vertices.data(), GL_STATIC_DRAW);
+			std::cout << camera.Position.x << " " << camera.Position.y << " " << camera.Position.z << std::endl;
 			accumTime = 0.0f;
 		}
 	}
@@ -281,10 +253,18 @@ GLfloat sphereDist(GLfloat x, GLfloat y, GLfloat z)
 	//return 256.0f - pow(x - 16.0f, 2) - pow(y - 16.0f, 2) - pow(z - 16.0f, 2);
 	static Noise n;
 	return y - 4.2f
-		     + 4.0f * n.perlinImproved(x / 16.0f, y / 16.0f, z / 16.0f)
-		     + 2.0f * n.perlinImproved(x / 9.0f,  y / 9.0f,  z / 9.0f)
-			 + 1.0f * n.perlinImproved(x / 4.0f,  y / 4.0f,  z / 4.0f)
-		     + 0.5f * n.perlinImproved(x / 1.5f,  y / 1.5f,  z / 1.5f);
+		//+ 16.0f * n.perlinImproved(x / 64.0f, y / 64.0f, z / 64.0f)
+		+ 4.0f * n.perlinImproved(x / 16.0f, y / 16.0f, z / 16.0f);
+		+ 2.0f * n.perlinImproved(x / 9.0f, y / 9.0f, z / 9.0f);
+        + 1.0f * n.perlinImproved(x / 4.0f,  y / 4.0f,  z / 4.0f)
+		+ 0.5f * n.perlinImproved(x / 1.5f,  y / 1.5f,  z / 1.5f);
+	/*
+	return y - 4.2f
+		+ 4.0f * glm::simplex(glm::vec3(x / 16.0f, y / 16.0f, z / 16.0f))
+		+ 2.0f * glm::simplex(glm::vec3(x / 9.0f, y / 9.0f, z / 9.0f))
+		+ 1.0f * glm::simplex(glm::vec3(x / 4.0f, y / 4.0f, z / 4.0f))
+		+ 0.5f * glm::simplex(glm::vec3(x / 1.5f, y / 1.5f, z / 1.5f));
+		*/
 }
 
 GLFWwindow* initWindow(GLvoid)

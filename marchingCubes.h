@@ -317,13 +317,37 @@ public:
 	glm::vec3 cornersCoords[8];
 	glm::vec3 cornerNorms[8];
 	GLfloat cornerVals[8];
-	Triangle triangles[4];
+	//Triangle triangles[4];
 	GLfloat gridSize;
+	GLfloat(*densityFunc)(GLfloat, GLfloat, GLfloat);
+
+	// Empty constructor to initialize the object
+	Cube()
+	{
+
+	}
 
 	// Pass the coords of the fore bottom left vertex
-	Cube(GLfloat x, GLfloat y, GLfloat z, GLfloat gridSize)
+	Cube(GLfloat x, GLfloat y, GLfloat z, GLfloat gridSize, GLfloat(*densityFunc)(GLfloat, GLfloat, GLfloat), std::vector<GLfloat>& vertices)
+	{
+		this->init(x, y, z, gridSize, densityFunc, vertices);
+
+		this->polygonise(0.0f, vertices);
+	}
+
+	GLint set(GLfloat x, GLfloat y, GLfloat z, GLfloat gridSize, GLfloat(*densityFunc)(GLfloat, GLfloat, GLfloat), std::vector<GLfloat>& vertices)
+	{
+		this->init(x, y, z, gridSize, densityFunc, vertices);
+
+		return this->polygonise(0.0f, vertices);
+	}
+
+private:
+
+	GLvoid init(GLfloat x, GLfloat y, GLfloat z, GLfloat gridSize, GLfloat(*densityFunc)(GLfloat, GLfloat, GLfloat), std::vector<GLfloat>& vertices)
 	{
 		this->gridSize = gridSize;
+		this->densityFunc = *densityFunc;
 
 		this->cornersCoords[0] = glm::vec3(x, y, z);
 		this->cornersCoords[1] = glm::vec3(x + gridSize, y, z);
@@ -333,9 +357,31 @@ public:
 		this->cornersCoords[5] = glm::vec3(x + gridSize, y, z + gridSize);
 		this->cornersCoords[6] = glm::vec3(x + gridSize, y + gridSize, z + gridSize);
 		this->cornersCoords[7] = glm::vec3(x, y + gridSize, z + gridSize);
+
+		// Find density values at coordinate points
+		this->cornerVals[0] = densityFunc(x, y, z);
+		this->cornerVals[1] = densityFunc(x + gridSize, y, z);
+		this->cornerVals[2] = densityFunc(x + gridSize, y + gridSize, z);
+		this->cornerVals[3] = densityFunc(x, y + gridSize, z);
+		this->cornerVals[4] = densityFunc(x, y, z + gridSize);
+		this->cornerVals[5] = densityFunc(x + gridSize, y, z + gridSize);
+		this->cornerVals[6] = densityFunc(x + gridSize, y + gridSize, z + gridSize);
+		this->cornerVals[7] = densityFunc(x, y + gridSize, z + gridSize);
+
+		// Find normal vectors at coordinate points
+		for (GLuint i = 0; i < 8; i++)
+		{
+			GLfloat x = cornersCoords[i].x;
+			GLfloat y = cornersCoords[i].y;
+			GLfloat z = cornersCoords[i].z;
+			GLfloat xdiff = (densityFunc(x*gridSize + 1, y*gridSize, z*gridSize) - densityFunc(x*gridSize - 1, y*gridSize, z*gridSize));
+			GLfloat ydiff = (densityFunc(x*gridSize, y*gridSize + 1, z*gridSize) - densityFunc(x*gridSize, y*gridSize - 1, z*gridSize));
+			GLfloat zdiff = (densityFunc(x*gridSize, y*gridSize, z*gridSize + 1) - densityFunc(x*gridSize, y*gridSize, z*gridSize - 1));
+			this->cornerNorms[i] = glm::normalize(glm::vec3(xdiff, ydiff, zdiff));
+		}
 	}
 
-	GLint polygonise(GLfloat isolevel)
+	GLint polygonise(GLfloat isolevel, std::vector<GLfloat>& vertices)
 	{
 		// Check each corner and set if below isosurface.
 		GLint cubeIndex = 0;
@@ -422,19 +468,48 @@ public:
 		GLint nTriags = 0;
 		for (GLint i = 0; triTable[cubeIndex][i] != -1; i += 3)
 		{
+			/*
 			this->triangles[nTriags].p[0] = vertexList[triTable[cubeIndex][i]];
 			this->triangles[nTriags].p[1] = vertexList[triTable[cubeIndex][i + 1]];
 			this->triangles[nTriags].p[2] = vertexList[triTable[cubeIndex][i + 2]];
 			this->triangles[nTriags].n[0] = normalList[triTable[cubeIndex][i]];
-			this->triangles[nTriags].n[1] = normalList[triTable[cubeIndex][i + 1]];;
-			this->triangles[nTriags].n[2] = normalList[triTable[cubeIndex][i + 2]];;
+			this->triangles[nTriags].n[1] = normalList[triTable[cubeIndex][i + 1]];
+			this->triangles[nTriags].n[2] = normalList[triTable[cubeIndex][i + 2]];
+			*/
+
+			vertices.push_back(vertexList[triTable[cubeIndex][i]].x);
+			vertices.push_back(vertexList[triTable[cubeIndex][i]].y);
+			vertices.push_back(vertexList[triTable[cubeIndex][i]].z);
+			vertices.push_back(normalList[triTable[cubeIndex][i]].x);
+			vertices.push_back(normalList[triTable[cubeIndex][i]].y);
+			vertices.push_back(normalList[triTable[cubeIndex][i]].z);
+			vertices.push_back(0.0);
+			vertices.push_back(0.0);
+
+			vertices.push_back(vertexList[triTable[cubeIndex][i + 1]].x);
+			vertices.push_back(vertexList[triTable[cubeIndex][i + 1]].y);
+			vertices.push_back(vertexList[triTable[cubeIndex][i + 1]].z);
+			vertices.push_back(normalList[triTable[cubeIndex][i + 1]].x);
+			vertices.push_back(normalList[triTable[cubeIndex][i + 1]].y);
+			vertices.push_back(normalList[triTable[cubeIndex][i + 1]].z);
+			vertices.push_back(1.0);
+			vertices.push_back(0.0);
+
+			vertices.push_back(vertexList[triTable[cubeIndex][i + 2]].x);
+			vertices.push_back(vertexList[triTable[cubeIndex][i + 2]].y);
+			vertices.push_back(vertexList[triTable[cubeIndex][i + 2]].z);
+			vertices.push_back(normalList[triTable[cubeIndex][i + 2]].x);
+			vertices.push_back(normalList[triTable[cubeIndex][i + 2]].y);
+			vertices.push_back(normalList[triTable[cubeIndex][i + 2]].z);
+			vertices.push_back(1.0);
+			vertices.push_back(1.0);
+
 			nTriags++;
 		}
 
 		return nTriags;
 	}
 
-private:
 	glm::vec3 interp3(GLfloat t, glm::vec3 p1, glm::vec3 p2, GLfloat val1, GLfloat val2)
 	{
 		GLfloat ratio = (t - val1) / (val2 - val1);

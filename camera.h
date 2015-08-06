@@ -146,7 +146,7 @@ public:
 			dist = -1.0f * (glm::dot(this->Position, norm) + d) / glm::dot(V, norm);
 			this->groundLevel = this->Position.y - dist;
 			//glm::vec3 P = this->Position + dist*V;
-			std::cout << dist << " " << dTime << std::endl;
+			//std::cout << dist << " " << dTime << std::endl;
 		}
 		else
 		{
