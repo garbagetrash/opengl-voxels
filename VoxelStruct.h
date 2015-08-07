@@ -86,8 +86,14 @@ public:
 					GLint ypos = y - N + y1;
 					GLint zpos = z - N + z1;
 					GLint xIdx = idxPtr.x + signX * (x + 1);
-					if (xIdx < 0) xIdx += 2 * N + 1;
-					if (xIdx >= 2 * N + 1) xIdx -= 2 * N + 1;
+					while (xIdx < 0)
+					{
+						xIdx += 2 * N + 1;
+					}
+					while (xIdx >= 2 * N + 1)
+					{
+						xIdx -= 2 * N + 1;
+					}
 					this->voxelArr(xIdx, y, z) = this->densityFunc(xpos, ypos, zpos);
 
 					// Now polygonize!
@@ -108,8 +114,14 @@ public:
 					GLint ypos = signY * (y + 1 + N) + y1;
 					GLint zpos = z - N + z1;
 					GLint yIdx = idxPtr.y + signY * (y + 1);
-					if (yIdx < 0) yIdx += 2 * N + 1;
-					if (yIdx >= 2 * N + 1) yIdx -= 2 * N + 1;
+					while (yIdx < 0)
+					{
+						yIdx += 2 * N + 1;
+					}
+					while (yIdx >= 2 * N + 1)
+					{
+						yIdx -= 2 * N + 1;
+					}
 					this->voxelArr(x, yIdx, z) = this->densityFunc(xpos, ypos, zpos);
 
 					// Now polygonize!
@@ -130,8 +142,14 @@ public:
 					GLint ypos = y - N + y1;
 					GLint zpos = signZ * (z + 1 + N) + z1;
 					GLint zIdx = idxPtr.z + signZ * (z + 1);
-					if (zIdx < 0) zIdx += 2 * N + 1;
-					if (zIdx >= 2 * N + 1) zIdx -= 2 * N + 1;
+					while (zIdx < 0)
+					{
+						zIdx += 2 * N + 1;
+					}
+					while (zIdx >= 2 * N + 1)
+					{
+						zIdx -= 2 * N + 1;
+					}
 					this->voxelArr(x, y, zIdx) = this->densityFunc(xpos, ypos, zpos);
 
 					// Now polygonize!
@@ -144,12 +162,30 @@ public:
 		GLint xidx = idxPtr.x + dx;
 		GLint yidx = idxPtr.y + dy;
 		GLint zidx = idxPtr.z + dz;
-		if (xidx < 0) xidx += 2 * N + 1;
-		if (xidx >= 2 * N + 1) xidx -= 2 * N + 1;
-		if (yidx < 0) yidx += 2 * N + 1;
-		if (yidx >= 2 * N + 1) yidx -= 2 * N + 1;
-		if (zidx < 0) zidx += 2 * N + 1;
-		if (zidx >= 2 * N + 1) zidx -= 2 * N + 1;
+		while (xidx < 0)
+		{
+			xidx += 2 * N + 1;
+		}
+		while (xidx >= 2 * N + 1)
+		{
+			xidx -= 2 * N + 1;
+		}
+		while (yidx < 0)
+		{
+			yidx += 2 * N + 1;
+		}
+		while (yidx >= 2 * N + 1)
+		{
+			yidx -= 2 * N + 1;
+		}
+		while (zidx < 0)
+		{
+			zidx += 2 * N + 1;
+		}
+		while (zidx >= 2 * N + 1)
+		{
+			zidx -= 2 * N + 1;
+		}
 		this->cameraIdxPtr = glm::vec3(xidx, yidx, zidx);
 		this->cameraPos = newPos;
 	}
@@ -179,6 +215,11 @@ private:
 	GLvoid polygonize(GLfloat x, GLfloat y, GLfloat z, std::vector<GLfloat>& vertices)
 	{
 		Cube(x, y, z, 1.0f, this->densityFunc, vertices);
+	}
+
+	GLvoid LODpolygonize(GLfloat x, GLfloat y, GLfloat z, std::vector<GLfloat>& vertices)
+	{
+		Cube(x, y, z, 2.0f, this->densityFunc, vertices);
 	}
 
 };

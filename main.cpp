@@ -95,23 +95,7 @@ int main()
 	//vertices.clear();
 	
 	// Initialize some terrain
-	GLint N = 16;
-	/*
-	Cube voxel;
-	//VoxelOctree tree(-N, -N, -N, 3);
-	GLfloat size = 1.0f;
-	for (GLfloat x = -N; x < N; x++)
-	{
-		for (GLfloat y = -N; y < N; y++)
-		{
-			for (GLfloat z = -N; z < N; z++)
-			{
-				voxel.set(size * x, size * y, size * z, size, sphereDist, vertices);
-				//tree.set(floor(x), floor(y), floor(z));
-			}
-		}
-	}
-	*/
+	GLint N = 8;
 	VoxelStruct field(glm::vec3(0.0f, 0.0f, 0.0f), N, sphereDist, vertices);
 
 	std::cout << vertices.capacity() << std::endl;
@@ -157,6 +141,8 @@ int main()
 	// Main program loop
 	while (!glfwWindowShouldClose(window))
 	{
+		GLfloat frameStart = glfwGetTime();
+
 		// Check for any events
 		glfwPollEvents();
 		do_movement();
@@ -214,29 +200,21 @@ int main()
 		glfwSwapBuffers(window);
 
 		accumTime += deltaTime;
-		if (accumTime > 3.0)
-		{
+		GLfloat frameEnd = glfwGetTime();
+		//if (frameEnd - frameEnd < 0.01)
+		//{
 			// Every 3 s draw new cell around player
 			//vertices.clear();
-			/*
-			N = 8;
-			for (GLfloat x = -N; x < N; x++)
+			GLuint nVertexes = 100000;
+			if (vertices.size() > 8 * nVertexes)
 			{
-				for (GLfloat y = -N; y < N; y++)
-				{
-					for (GLfloat z = -N; z < N; z++)
-					{
-						voxel.set(floor(camera.Position.x + x), floor(camera.Position.y + y), floor(camera.Position.z + z), 1.0f, sphereDist, vertices);
-						//tree.set(floor(x), floor(y), floor(z));
-					}
-				}
+				vertices.clear();
 			}
-			*/
 			field.updateVoxels(camera.Position, vertices);
 			glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * vertices.size(), vertices.data(), GL_STATIC_DRAW);
 			std::cout << camera.Position.x << " " << camera.Position.y << " " << camera.Position.z << std::endl;
 			accumTime = 0.0f;
-		}
+		//}
 	}
 	// De-allocate all resources once they're done
 	glDeleteVertexArrays(1, &VAO);
