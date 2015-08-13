@@ -41,14 +41,16 @@ public:
 	array3d<GLfloat> voxelArr;
 	glm::vec3 cameraPos;
 	GLfloat(*densityFunc)(GLfloat, GLfloat, GLfloat);
+	GLfloat gridsize;
 
-	VoxelStruct(glm::vec3 pos, GLuint N, GLfloat(*densityFunc)(GLfloat, GLfloat, GLfloat), std::vector<GLfloat>& vertices)
+	VoxelStruct(glm::vec3 pos, GLuint N, GLfloat(*densityFunc)(GLfloat, GLfloat, GLfloat), std::vector<GLfloat>& vertices, GLfloat gridsize)
 	{
 		this->cameraPos = pos;
 		this->N = N;
 		this->voxelArr = array3d<GLfloat> (2 * N + 1, 2 * N + 1, 2 * N + 1);
 		this->densityFunc = *densityFunc;
 		this->cameraIdxPtr = glm::vec3(0, 0, 0);
+		this->gridsize = gridsize;
 
 		init(pos, vertices);
 	}

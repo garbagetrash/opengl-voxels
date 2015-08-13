@@ -19,12 +19,14 @@
 #include "shader.h"
 #include "mesh.h"
 #include "noise.h"
+#include "simplexnoise1234.h"
 #include "grassTex.h"
 #include "camera.h"
 #include "voxels.h"
 #include "marchingCubes.h"
-#include "VoxelOctree.h"
-#include "VoxelStruct.h"
+//#include "VoxelOctree.h"
+//#include "VoxelStruct.h"
+#include "Block.h"
 
 //////////
 // Globals
@@ -96,7 +98,9 @@ int main()
 	
 	// Initialize some terrain
 	GLint N = 8;
-	VoxelStruct field(glm::vec3(0.0f, 0.0f, 0.0f), N, sphereDist, vertices);
+	//VoxelStruct field(glm::vec3(0.0f, 0.0f, 0.0f), N, sphereDist, vertices, 1.0f);
+	Block firstBlock(glm::vec3(0.0f, 0.0f, 0.0f), 64, 1.0f, sphereDist);
+	firstBlock.polygonize(vertices);
 
 	std::cout << vertices.capacity() << std::endl;
 	std::cout << vertices.max_size() << std::endl;
@@ -146,7 +150,7 @@ int main()
 		// Check for any events
 		glfwPollEvents();
 		do_movement();
-		camera.collisionDetect(vertices, deltaTime);
+		//camera.collisionDetect(vertices, deltaTime);
 
 		// Render code
 		// Clear the color buffer
@@ -205,14 +209,15 @@ int main()
 		//{
 			// Every 3 s draw new cell around player
 			//vertices.clear();
-			GLuint nVertexes = 100000;
+			GLuint nVertexes = 1000000;
 			if (vertices.size() > 8 * nVertexes)
 			{
-				vertices.clear();
+				//vertices.clear();
 			}
-			field.updateVoxels(camera.Position, vertices);
+			//field.updateVoxels(camera.Position, vertices);
+			//VoxelLodStruct(camera.Position, 1024.0f, 0, vertices);
 			glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * vertices.size(), vertices.data(), GL_STATIC_DRAW);
-			std::cout << camera.Position.x << " " << camera.Position.y << " " << camera.Position.z << std::endl;
+			//std::cout << camera.Position.x << " " << camera.Position.y << " " << camera.Position.z << std::endl;
 			accumTime = 0.0f;
 		//}
 	}
@@ -229,13 +234,14 @@ int main()
 GLfloat sphereDist(GLfloat x, GLfloat y, GLfloat z)
 {
 	//return 256.0f - pow(x - 16.0f, 2) - pow(y - 16.0f, 2) - pow(z - 16.0f, 2);
-	static Noise n;
-	return y - 4.2f
+	//static Noise n;
+	static SimplexNoise1234 n;
+	return y*y - 4.0f
 		//+ 16.0f * n.perlinImproved(x / 64.0f, y / 64.0f, z / 64.0f)
-		+ 4.0f * n.perlinImproved(x / 16.0f, y / 16.0f, z / 16.0f);
-		+ 2.0f * n.perlinImproved(x / 9.0f, y / 9.0f, z / 9.0f);
-        + 1.0f * n.perlinImproved(x / 4.0f,  y / 4.0f,  z / 4.0f)
-		+ 0.5f * n.perlinImproved(x / 1.5f,  y / 1.5f,  z / 1.5f);
+		+ 4.0f * n.noise(x / 16.0f, y / 16.0f, z / 16.0f)
+		+ 2.0f * n.noise(x / 9.0f, y / 9.0f, z / 9.0f)
+		+ 1.0f * n.noise(x / 4.0f, y / 4.0f, z / 4.0f)
+		+ 0.5f * n.noise(x / 1.5f, y / 1.5f, z / 1.5f);
 	/*
 	return y - 4.2f
 		+ 4.0f * glm::simplex(glm::vec3(x / 16.0f, y / 16.0f, z / 16.0f))

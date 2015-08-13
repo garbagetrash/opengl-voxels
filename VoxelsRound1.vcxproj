@@ -68,13 +68,16 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="simplexnoise1234.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="camera.h" />
     <ClInclude Include="grassTex.h" />
+    <ClInclude Include="Block.h" />
     <ClInclude Include="marchingCubes.h" />
     <ClInclude Include="mesh.h" />
     <ClInclude Include="noise.h" />
+    <ClInclude Include="simplexnoise1234.h" />
     <ClInclude Include="VoxelField.h" />
     <ClInclude Include="VoxelOctree.h" />
     <ClInclude Include="voxels.h" />
