@@ -15,6 +15,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/noise.hpp>
+// OpenCL
+#include <CL/cl_gl.h>
 // My files
 #include "shader.h"
 #include "mesh.h"
@@ -27,6 +29,22 @@
 //#include "VoxelOctree.h"
 //#include "VoxelStruct.h"
 #include "Block.h"
+
+/////////////////////
+// OpenCL Kernel Code
+const GLchar *KernelSource = "\n" \
+"__kernel void vadd(\n" \
+"  __global float* a,\n" \
+"  __global float* b,\n" \
+"  __global float* c,\n" \
+"  const unsigned int cout)\n" \
+"{\n" \
+"  int i = get_global_id(0);\n" \
+"  if (i < count)\n" \
+"    c[i] = a[i] + b[i];\n" \
+"}\n" \
+"\n";
+//-----------------------------------------------------
 
 //////////
 // Globals
@@ -51,6 +69,8 @@ GLvoid collisionDetect(std::vector<GLfloat> vertices);
 GLboolean pointInTriag(glm::vec3 p, glm::vec3 a, glm::vec3 b, glm::vec3 c);
 GLboolean sameSide(glm::vec3 p1, glm::vec3 p2, glm::vec3 a, glm::vec3 b);
 GLFWwindow* initWindow(GLvoid);
+GLint openClDeviceInfo(GLvoid);
+GLint initCL(GLvoid);
 GLfloat sphereDist(GLfloat x, GLfloat y, GLfloat z);
 
 ////////////////
@@ -76,6 +96,10 @@ int main()
 	//Shader shader("voxels.vs", "voxels.frag");
 	Shader simpleShader("simpleShader.vs", "simpleShader.frag");
 	Shader grassShader("grassShader.vs", "grassShader.frag");
+
+	///////////////////////////////////////
+	// Setup OpenCL
+	openClDeviceInfo();
 
 	// Evaluate the grid with our distance field.
 	std::vector<GLfloat> vertices;
@@ -293,6 +317,242 @@ GLFWwindow* initWindow(GLvoid)
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	return window;
+}
+
+GLint initCL()
+{
+	GLfloat TOL = 0.001;
+	GLint LENGTH = 1024;
+
+	GLint err;
+
+	std::vector<GLfloat> h_a(LENGTH, 0);
+	std::vector<GLfloat> h_b(LENGTH, 0);
+	std::vector<GLfloat> h_c(LENGTH, 0);
+
+	cl_device_id device_id;
+	cl_context context;
+	cl_command_queue commands;
+	cl_program program;
+	cl_kernel ko_vadd;
+
+	cl_mem d_a;
+	cl_mem d_b;
+	cl_mem d_c;
+
+	// Fill vectors a and b with random floats
+	GLint i = 0;
+	GLint count = LENGTH;
+	for (i = 0; i < count; i++)
+	{
+		h_a[i] = rand() / (GLfloat)RAND_MAX;
+		h_b[i] = rand() / (GLfloat)RAND_MAX;
+	}
+
+	// Setup platform and GPU device
+	cl_uint numPlatforms;
+
+	// Find number of platforms
+	err = clGetPlatformIDs(0, NULL, &numPlatforms);
+	//checkError(err, "Finding platforms");
+	if (numPlatforms == 0)
+	{
+		std::cout << "Found 0 platforms!" << std::endl;
+		return EXIT_FAILURE;
+	}
+
+	// Get all platforms
+	std::vector<cl_platform_id> Platform(numPlatforms);
+	err = clGetPlatformIDs(numPlatforms, Platform.data(), NULL);
+	//checkError(err, "Getting platforms");
+
+	// Secure a GPU
+	for (i = 0; i < numPlatforms; i++)
+	{
+		err = clGetDeviceIDs(Platform[i], DEVICE, 1, &device_id, NULL);
+		if (err == CL_SUCCESS)
+		{
+			break;
+		}
+	}
+
+	if (device_id == NULL)
+	{
+		//checkError(err, "Finding a device");
+	}
+
+	err = output_device_info(device_id);
+	//checkError(err, Printing a device output");
+
+	// Create a compute context
+	context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
+	//checkError(err, "Creating a context");
+
+	// Create a command queue
+	commands = clCreateCommandQueue(context, device_id, 0, &err);
+	//checkError(err, "Creating a command queue");
+
+	// Create the compute program from the source buffer
+	program = clCreateProgramWithSource(context, 1, (const GLchar **)&KernelSource, NULL, &err);
+	//checkError(err, "Creating a program");
+
+	// Build the program
+	err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
+	if (err != CL_SUCCESS)
+	{
+		size_t len;
+		GLchar buffer[2048];
+
+		std::cout << "Error: Failed to biuld program executable!" << std::endl << err << std::endl;
+		clGetProgramBuildInfo(program, device_id, CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, &len);
+		std::cout << buffer << std::endl;
+		return EXIT_FAILURE;
+	}
+
+	// Create the compute kernel from the program
+	ko_vadd = clCreateKernel(program, "vadd", &err);
+	//checkError(err, "Creating kernel");
+
+	// Create the input (a, b) and output (c) arrays in device memory
+	d_a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float) * count, NULL, &err);
+	//checkError(err, "Creating buffer d_a");
+	d_b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float) * count, NULL, &err);
+	//checkError(err, "Creating buffer d_b");
+	d_c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float) * count, NULL, &err);
+	//checkError(err, "Creating buffer d_c");
+
+	// Write a and b vectors into compute device memory
+	err = clEnqueueWriteBuffer(commands, d_a, CL_TRUE, 0, sizeof(float) * count, h_a.data(), 0, NULL, NULL);
+	//checkError(err, "Copying h_a to device at d_a");
+	err = clEnqueueWriteBuffer(commands, d_b, CL_TRUE, 0, sizeof(float) * count, h_b.data(), 0, NULL, NULL);
+	//checkError(err, "Copying h_b to device at d_b");
+
+	// Set the arguments to our compute kernel
+	err = clSetKernelArg(ko_vadd, 0, sizeof(cl_mem), &d_a);
+	err = clSetKernelArg(ko_vadd, 1, sizeof(cl_mem), &d_b);
+	err = clSetKernelArg(ko_vadd, 2, sizeof(cl_mem), &d_c);
+	err = clSetKernelArg(ko_vadd, 3, sizeof(unsigned int), &count);
+	//checkError(err, "Setting kernel arguments");
+
+	GLdouble rtime = wtime();
+
+	// Execute the kernel over the entire range of our 1d input data set
+	// letting the OpenCL runtime choose the work group size
+}
+
+GLint openClDeviceInfo()
+{
+	cl_int err;
+
+	// Find the number of OpenCL platforms
+	cl_uint num_platforms;
+	err = clGetPlatformIDs(0, NULL, &num_platforms);
+	//checkError(err, "Finding platforms");
+	if (num_platforms == 0)
+	{
+		std::cout << "Found 0 platforms!" << std::endl;
+		return EXIT_FAILURE;
+	}
+
+	// Create a list of platform IDs
+	cl_platform_id platform[20];
+	err = clGetPlatformIDs(num_platforms, platform, NULL);
+	//checkError(err, "Getting platforms");
+
+	std::cout << "Number of OpenGL platforms: " << num_platforms << std::endl;
+	std::cout << "--------------------------" << std::endl;
+
+	// Investigate each platform
+	for (GLint i = 0; i < num_platforms; i++)
+	{
+		cl_char string[10240] = { 0 };
+		// Print out the platform name
+		err = clGetPlatformInfo(platform[i], CL_PLATFORM_NAME, sizeof(string), &string, NULL);
+		//checkError(err, "Getting platform name");
+		std::cout << "Platform: " << string << std::endl;
+
+		// Print out the platform vendor
+		err = clGetPlatformInfo(platform[i], CL_PLATFORM_VENDOR, sizeof(string), &string, NULL);
+		//checkError(err, "Getting platform vendor");
+		std::cout << "Vendor: " << string << std::endl;
+
+		// Print out the platform OpenCL version
+		err = clGetPlatformInfo(platform[i], CL_PLATFORM_VERSION, sizeof(string), &string, NULL);
+		//checkError(err, "Getting platform OpenCL version");
+		std::cout << "Version: " << string << std::endl;
+
+		// Count the number of devices in the platform
+		cl_uint num_devices;
+		err = clGetDeviceIDs(platform[i], CL_DEVICE_TYPE_ALL, 0, NULL, &num_devices);
+		//checkError(err, "Finding devices");
+
+		// Get the device IDs
+		cl_device_id device[32];
+		err = clGetDeviceIDs(platform[i], CL_DEVICE_TYPE_ALL, num_devices, device, NULL);
+		//checkError(err, "Getting devices");
+		std::cout << "Number of devices: " << num_devices << std::endl;
+
+		// Investigate each device
+		for (GLint j = 0; j < num_devices; j++)
+		{
+			std::cout << "--------------------------" << std::endl;
+
+			// Get device name
+			err = clGetDeviceInfo(device[j], CL_DEVICE_NAME, sizeof(string), &string, NULL);
+			//checkError(err, "Getting device name");
+			std::cout << "\t\tName: " << string << std::endl;
+
+			// Get device OpenCL version
+			err = clGetDeviceInfo(device[j], CL_DEVICE_OPENCL_C_VERSION, sizeof(string), &string, NULL);
+			//checkError(err, "Getting device OpenCL C version");
+			std::cout << "\t\tVersion: " << string << std::endl;
+
+			// Get Max. Compute units
+			cl_uint num;
+			err = clGetDeviceInfo(device[j], CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &num, NULL);
+			//checkError(err, "Getting device max compute units");
+			std::cout << "\t\tMax. Compute Units: " << num << std::endl;
+
+			// Get local memory size
+			cl_ulong mem_size;
+			err = clGetDeviceInfo(device[j], CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &mem_size, NULL);
+			//checkError(err, "Getting device local memory size");
+			std::cout << "\t\tLocal Memory Size: " << mem_size/1024 << "KB" << std::endl;
+
+			// Get global memory size
+			err = clGetDeviceInfo(device[j], CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &mem_size, NULL);
+			//checkError(err, "Getting device global memory size");
+			std::cout << "\t\tGlobal Memory Size: " << mem_size / (1024*1024) << "MB" << std::endl;
+
+			// Get maximum buffer alloc. size
+			err = clGetDeviceInfo(device[j], CL_DEVICE_MAX_MEM_ALLOC_SIZE, sizeof(cl_ulong), &mem_size, NULL);
+			//checkError(err, "Getting device max allocation size");
+			std::cout << "\t\tMax Alloc Size: " << mem_size / (1024*1024) << "MB" << std::endl;
+
+			// Get work group size information
+			size_t size;
+			err = clGetDeviceInfo(device[j], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &size, NULL);
+			//checkError(err, "Getting device max work group size");
+			std::cout << "\t\tMax Work Group Total Size: " << size << std::endl;
+
+			// Find the maximum dimensions of the work groups
+			err = clGetDeviceInfo(device[j], CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(cl_uint), &num, NULL);
+			//checkError(err, "Getting device max work item dims");
+			// Get the max. dimensions of the work groups
+			size_t dims[32];
+			err = clGetDeviceInfo(device[j], CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(dims), &dims, NULL);
+			//checkError(err, "Getting device max work item sizes");
+			std::cout << "\t\tMax Work Group Dims: ( ";
+			for (size_t k = 0; k < num; k++)
+			{
+				std::cout << dims[k] << " ";
+			}
+			std::cout << std::endl << "\t-----------------------" << std::endl;
+		}
+		std::cout << std::endl << "----------------------------" << std::endl;
+	}
+
+	return EXIT_SUCCESS;
 }
 
 GLvoid do_movement()
